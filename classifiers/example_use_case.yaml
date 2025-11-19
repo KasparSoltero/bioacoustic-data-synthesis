@@ -1,0 +1,5 @@
+experiment: 1
+project_root: "bioacoustic-data-synthesis/classifiers/"
+num_cores: 8
+run_training: true
+epochs: 20

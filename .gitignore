@@ -1,0 +1,17 @@
+
+.venv
+.DS_Store
+__pycache__
+
+config.yaml
+classifiers/use_case.yaml
+input_datasets/*
+synthesised-datasets/*
+eval_results
+
+tests
+
+classifiers/augmented_dataset/*
+classifiers/evaluation_results/*
+lightning_logs/*
+extra_log/*

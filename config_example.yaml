@@ -1,0 +1,34 @@
+paths:
+  dataset: 'example_dataset'
+  vocalisations: 'vocalisations'
+  noise: 'noise'
+  negative: 'negative'
+  output: 'output'
+
+input:
+  allowed_files: ['.WAV', '.wav', '.mp3', '.flac', '.m4a']
+
+output:
+  overwrite_output_path: True
+
+  n: 3
+  val_ratio: 0.8
+  single_class: False
+  include_soundfile: True #48000 Hz
+  include_spectrogram: True
+  include_boxes: True
+  include_masks: True
+  include_kaytoo: True
+
+  positive_overlay_range: [0,5]
+  negative_overlay_range: [0,2]
+  repetitions: [1,10] # repetitions occur 50% of the time
+  snr_range: [0.5,1]
+
+  # todo Logspec - always true atm
+  length: 10 # seconds
+  rainbow_frequency: True # maybe helpful from https://www.sciencedirect.com/science/article/pii/S1574954121003253
+  
+plot:
+  toggle: True
+  color_filter: 'dusk' # 'dusk' or None for true color
