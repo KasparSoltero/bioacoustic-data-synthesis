@@ -1,0 +1,1 @@
+# for idx in range(n) loop), train/val splitting, clearing/concatenating existing data, and coordinating label writers. Calls into synthesis.py for each sample.
