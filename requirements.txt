@@ -9,3 +9,4 @@ soundfile
 pydub
 chardet
 scikit-image
+torchcodec

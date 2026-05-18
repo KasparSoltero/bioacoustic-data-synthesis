@@ -17,3 +17,8 @@ lightning_logs/*
 extra_log/*
 
 docs/
+
+archive/
+config_old.yaml
+main_old.py
+evaluation_old.py
