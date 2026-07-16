@@ -8,7 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap, hsv_to_rgb
-from torchcodec.decoders import AudioDecoder
 from typing import Optional, Tuple
 
 from synthesiser.spectrogram import Spectrogram
@@ -262,9 +261,7 @@ def interactive_cli():
         print("File not found.")
         return
 
-    decoder = AudioDecoder(path)
-    waveform = decoder.get_all_samples().data
-    sr = decoder.metadata.sample_rate
+    waveform, sr = torchaudio.load(path)
     
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)

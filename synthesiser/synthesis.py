@@ -80,6 +80,10 @@ class SoundscapeSynthesiser:
             # Trim the overlay so any overhangs are sliced off, returns corrected >= 0 start sample
             actual_start_sample = neg_wf.trim_to_mix(start_offset, bg_samples)
             
+            # Apply slow 0.5s sinusoidal smoothing on-off for negatives (treating them as transients)
+            sine_fade_samples = int(0.5 * self.config.synthesis.sample_rate)
+            neg_wf.sine_fade(sine_fade_samples)
+            
             # Fade the negative overlay to avoid harsh cut-ins
             fade_samples = int(0.01 * self.config.synthesis.sample_rate) # 10ms fade
             neg_wf.fade(fade_samples)

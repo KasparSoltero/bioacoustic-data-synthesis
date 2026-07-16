@@ -1,7 +1,6 @@
 import csv
 import random
 from pathlib import Path
-from torchcodec.decoders import AudioDecoder
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set, Tuple
 
@@ -153,8 +152,8 @@ class Catalog:
 
             for file_path in bg_dir.rglob('*'):
                 if self._is_audio(file_path):
-                    decoder = AudioDecoder(str(file_path))
-                    duration_s = decoder.metadata.duration_seconds
+                    info = torchaudio.info(str(file_path))
+                    duration_s = info.num_frames / info.sample_rate
                     
                     if duration_s < target_len:
                         print(f"   [Catalog] Reassigned {file_path.name} to negatives: too short ({duration_s:.1f}s < {target_len}s)")
@@ -188,11 +187,9 @@ class Catalog:
         the waveform is later resampled for synthesis.
         """
         from synthesiser.spectrogram import Spectrogram
-        decoder = AudioDecoder(str(file_path))
-        tensor = decoder.get_all_samples().data
+        tensor, sr = torchaudio.load(str(file_path))
         if tensor.shape[0] > 1:
             tensor = tensor.mean(dim=0, keepdim=True)
-        sr = decoder.metadata.sample_rate
         original_nyquist = sr // 2
         # Use at most 30 seconds at the original sample rate — no resampling
         max_samples = sample_rate * 30

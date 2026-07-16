@@ -7,14 +7,16 @@ import numpy as np
 import torchaudio
 from pathlib import Path
 from PIL import Image
+import matplotlib.pyplot as plt
 
 from synthesiser.config import load_config
 from synthesiser.catalog import Catalog
 from synthesiser.synthesis import SoundscapeSynthesiser
 from synthesiser.spectrogram import Spectrogram
 from spectrogram_tools import spec_to_pil, merge_boxes_by_class
+from synthesiser.visualisation import plot_spectrogram
 
-def generate_dataset():
+def generate_dataset(limit_per_class=None):
     print("=== Soundscape Dataset Generation ===")
     
     # 1. Load Configuration
@@ -26,7 +28,7 @@ def generate_dataset():
 
     # 2. Init Catalog
     try:
-        catalog = Catalog(config)
+        catalog = Catalog(config, limit_per_class=limit_per_class)
     except Exception as e:
         print(f"[Error] Failed to load catalog: {e}")
         sys.exit(1)
@@ -38,8 +40,10 @@ def generate_dataset():
     out_dir = Path(config.paths.output) / "artificial_dataset"
     if config.output.overwrite and out_dir.exists():
         shutil.rmtree(out_dir)
+    example_dir = out_dir / "example"
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    example_dir.mkdir(parents=True, exist_ok=True)
     
     for split in ['train', 'val']:
         if config.output.include_audio:
@@ -94,6 +98,22 @@ def generate_dataset():
                                win_length=config.spectrogram.win_length)
             spec.to_real(power=2.0)
             spec.to_logscale()
+
+            if idx < 3:
+                # Save example audio
+                torchaudio.save(str(example_dir / f"example_{idx}.wav"), mixed_waveform.tensor.cpu(), mixed_waveform.sample_rate)
+                
+                # Save raw spectrogram
+                fig, ax = plt.subplots(figsize=(10, 4))
+                plot_spectrogram(spec, ax=ax, show=False, db_scale=True, cmap='dusk')
+                fig.savefig(example_dir / f"example_{idx}_raw.png", bbox_inches='tight', dpi=150)
+                plt.close(fig)
+                
+                # Save labeled spectrogram
+                fig, ax = plt.subplots(figsize=(10, 4))
+                plot_spectrogram(spec, ax=ax, show=False, db_scale=True, cmap='dusk', annotations=annotations)
+                fig.savefig(example_dir / f"example_{idx}_labels.png", bbox_inches='tight', dpi=150)
+                plt.close(fig)
 
             img = None
             if config.output.include_spectrogram or config.output.include_masks:

@@ -4,7 +4,6 @@ import torch
 import torchaudio
 import random
 import numpy as np
-from torchcodec.decoders import AudioDecoder
 from pydub import AudioSegment
 from pydub.playback import play as pydub_play
 
@@ -20,9 +19,7 @@ class Waveform:
 
     @classmethod
     def load(cls, path: str, target_sr: int = None):
-        decoder = AudioDecoder(str(path))
-        tensor = decoder.get_all_samples().data
-        sr = decoder.metadata.sample_rate
+        tensor, sr = torchaudio.load(str(path))
         
         if tensor.shape[0] > 1:
             print('    waveform: converting to mono')
@@ -36,11 +33,24 @@ class Waveform:
             sr = target_sr
 
             if target_sr > original_nyquist * 2:
-                print(f'    waveform: anti-alias brickwall LP at {original_nyquist} Hz')
+                print(f'    waveform: anti-alias smooth LP at {original_nyquist} Hz')
                 n = tensor.shape[-1]
                 fft_data = torch.fft.rfft(tensor, dim=-1)
                 freqs = torch.fft.rfftfreq(n, d=1.0 / sr).to(tensor.device)
-                fft_data[..., freqs > original_nyquist] = 0.0
+                
+                fade_hz = min(1000, original_nyquist // 4)
+                fade_start_hz = original_nyquist - fade_hz
+                
+                mask = torch.ones_like(freqs)
+                mask[freqs > original_nyquist] = 0.0
+                
+                fade_mask = (freqs > fade_start_hz) & (freqs <= original_nyquist)
+                fade_bins = fade_mask.sum().item()
+                if fade_bins > 0:
+                    t = torch.linspace(torch.pi, 0, steps=fade_bins, device=tensor.device)
+                    mask[fade_mask] = 0.5 * (1.0 - torch.cos(t))
+                    
+                fft_data = fft_data * mask
                 tensor = torch.fft.irfft(fft_data, n=n, dim=-1)
 
         instance = cls(tensor, sr)
@@ -91,6 +101,31 @@ class Waveform:
         if fade_out_len > 0:
             fade_out_curve = torch.linspace(1, 0, steps=fade_out_len, device=self.tensor.device)
             self.tensor[:, -fade_out_len:] *= fade_out_curve
+            
+        return self
+
+    def sine_fade(self, fade_in_len: int, fade_out_len: int = None):
+        """
+        Applies a fixed-width sinusoidal (raised cosine) fade. 
+        Unlike standard fade, this does not cap the fade length to the waveform length.
+        Very short transients will remain at low amplitude and become virtually inaudible.
+        """
+        if fade_out_len is None:
+            fade_out_len = fade_in_len
+            
+        length = self.tensor.shape[1]
+        
+        if fade_in_len > 0:
+            t_in = torch.linspace(0, torch.pi, steps=fade_in_len, device=self.tensor.device)
+            curve_in = 0.5 * (1.0 - torch.cos(t_in))
+            apply_in = min(length, fade_in_len)
+            self.tensor[:, :apply_in] *= curve_in[:apply_in]
+            
+        if fade_out_len > 0:
+            t_out = torch.linspace(torch.pi, 0, steps=fade_out_len, device=self.tensor.device)
+            curve_out = 0.5 * (1.0 - torch.cos(t_out))
+            apply_out = min(length, fade_out_len)
+            self.tensor[:, -apply_out:] *= curve_out[-apply_out:]
             
         return self
 
