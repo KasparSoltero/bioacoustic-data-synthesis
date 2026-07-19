@@ -54,6 +54,8 @@ def generate_dataset(limit_per_class=None):
             (out_dir / f"box_labels/{split}").mkdir(parents=True, exist_ok=True)
         if config.output.include_presence:
             (out_dir / f"presence/{split}").mkdir(parents=True, exist_ok=True)
+        if config.output.include_simple_labels:
+            (out_dir / f"labels/{split}").mkdir(parents=True, exist_ok=True)
         if config.output.include_masks:
             (out_dir / f"unetplusplus_masks/{split}/images").mkdir(parents=True, exist_ok=True)
             (out_dir / f"unetplusplus_masks/{split}/masks").mkdir(parents=True, exist_ok=True)
@@ -223,6 +225,17 @@ def generate_dataset(limit_per_class=None):
                 if config.output.include_presence and presence_array is not None:
                     presence_path = out_dir / f"presence/{split}/{idx}.npy"
                     np.save(str(presence_path), presence_array)
+
+                # Save Simple Labels
+                if config.output.include_simple_labels:
+                    simple_classes = set()
+                    for ann in annotations:
+                        rec = ann.get('record')
+                        if rec and rec.class_id is not None:
+                            simple_classes.add(rec.class_id)
+                    labels_path = out_dir / f"labels/{split}/{idx}.txt"
+                    with open(labels_path, 'w') as f:
+                        f.write(" ".join(str(c) for c in sorted(simple_classes)) + "\n")
 
                 # Save U-Net++ Masks
                 if config.output.include_masks and img is not None:

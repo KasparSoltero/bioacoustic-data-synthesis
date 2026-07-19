@@ -46,6 +46,7 @@ class OutputConfig:
     overwrite: bool
     color_mode: str
     include_presence: bool = False
+    include_simple_labels: bool = True
     ignore_classes: List[str] = field(default_factory=list)
     target_db: float = -10.0
     val_ratio: float = 0.8
