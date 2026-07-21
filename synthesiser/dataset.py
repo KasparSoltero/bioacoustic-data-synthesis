@@ -3,6 +3,7 @@ import sys
 import random
 import shutil
 import yaml
+import copy
 import numpy as np
 import torchaudio
 from pathlib import Path
@@ -26,18 +27,38 @@ def generate_dataset(limit_per_class=None):
         print(f"[Error] Failed to load config: {e}")
         sys.exit(1)
 
+    runs = [("artificial_dataset", False)]
+    if getattr(config.output, 'generate_raw_dataset', False):
+        runs.append(("artificial_dataset_raw", True))
+
+    for out_dir_name, is_raw in runs:
+        print(f"\n=== Starting Run: {out_dir_name} ===")
+        _generate_single_run(config, out_dir_name, is_raw, limit_per_class)
+
+def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
+    config = copy.deepcopy(base_config)
+    
+    if is_raw:
+        config.output.include_boxes = False
+        config.output.include_masks = False
+        config.output.include_presence = False
+
     # 2. Init Catalog
     try:
-        catalog = Catalog(config, limit_per_class=limit_per_class)
+        catalog = Catalog(config, limit_per_class=limit_per_class, use_raw_vocalisations=is_raw)
     except Exception as e:
         print(f"[Error] Failed to load catalog: {e}")
-        sys.exit(1)
+        return
+        
+    if not catalog.positives:
+        print(f"[Warning] No positives found for {out_dir_name}. Skipping.")
+        return
 
     # 3. Init Synthesiser
     synthesiser = SoundscapeSynthesiser(config)
 
     # 4. Prepare Directories
-    out_dir = Path(config.paths.output) / "artificial_dataset"
+    out_dir = Path(config.paths.output) / out_dir_name
     if config.output.overwrite and out_dir.exists():
         shutil.rmtree(out_dir)
     example_dir = out_dir / "example"
@@ -126,8 +147,8 @@ def generate_dataset(limit_per_class=None):
                     img_path = out_dir / f"images/{split}/{idx}.jpg"
                     img.save(str(img_path), quality=95)
 
-            # Boxes, Masks, and Presence Processing
-            if config.output.include_boxes or config.output.include_masks or config.output.include_presence:
+            # Boxes, Masks, Presence, and Simple Labels Processing
+            if config.output.include_boxes or config.output.include_masks or config.output.include_presence or config.output.include_simple_labels:
                 original_height = spec.n_fft // 2 + 1
                 height = spec.values.shape[1]
                 width = spec.values.shape[2]
@@ -264,7 +285,7 @@ def generate_dataset(limit_per_class=None):
     print("\n[Dataset] Writing manifests...")
     
     # species_value_map.csv
-    with open(Path(config.paths.output) / 'species_value_map.csv', 'w') as f:
+    with open(out_dir / 'species_value_map.csv', 'w') as f:
         for key, value in catalog.species_map.items():
             f.write(f"{value},{key}\n")
 

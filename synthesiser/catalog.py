@@ -27,9 +27,10 @@ class Catalog:
     
     ALLOWED_EXTENSIONS: Set[str] = {'.wav', '.mp3', '.flac'}
 
-    def __init__(self, config: Config, limit_per_class: Optional[int] = None):
+    def __init__(self, config: Config, limit_per_class: Optional[int] = None, use_raw_vocalisations: bool = False):
         self.config = config
         self.limit_per_class = limit_per_class
+        self.use_raw_vocalisations = use_raw_vocalisations
         self.positives: List[AudioRecord] = []
         self.negatives: List[AudioRecord] = []
         self.backgrounds: List[AudioRecord] = []
@@ -95,7 +96,8 @@ class Catalog:
 
     def _load_positives(self):
         class_id_counter = 0
-        for voc_dir_str in self.config.paths.vocalisations:
+        voc_paths = self.config.paths.vocalisations_raw if self.use_raw_vocalisations else self.config.paths.vocalisations
+        for voc_dir_str in voc_paths:
             voc_dir = Path(voc_dir_str)
             if not voc_dir.exists():
                 print(f"Warning: Vocalisations directory not found: {voc_dir}")

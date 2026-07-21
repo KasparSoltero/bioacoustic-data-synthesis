@@ -8,6 +8,7 @@ class PathsConfig:
     negative: List[str]
     noise: List[str]
     output: str
+    vocalisations_raw: List[str] = field(default_factory=list)
 
 @dataclass
 class SyntheticNoiseConfig:
@@ -47,6 +48,7 @@ class OutputConfig:
     color_mode: str
     include_presence: bool = False
     include_simple_labels: bool = True
+    generate_raw_dataset: bool = False
     ignore_classes: List[str] = field(default_factory=list)
     target_db: float = -10.0
     val_ratio: float = 0.8
@@ -115,6 +117,7 @@ def load_config(yaml_path: str = "config.yaml") -> Config:
     raw_paths = raw.get('paths', {})
     paths_config = PathsConfig(
         vocalisations=_ensure_list(raw_paths.get('vocalisations')),
+        vocalisations_raw=_ensure_list(raw_paths.get('vocalisations_raw')),
         negative=_ensure_list(raw_paths.get('negative')),
         noise=_ensure_list(raw_paths.get('noise')),
         output=raw_paths.get('output', 'output')

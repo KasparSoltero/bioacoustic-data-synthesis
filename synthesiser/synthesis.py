@@ -274,7 +274,8 @@ class SoundscapeSynthesiser:
 
             # 7. All checks passed: commit to the mix
             is_ignored = pos_record.label in self.config.output.ignore_classes
-            if (box is not None or mask is not None) and not is_ignored:
+            has_label = (box is not None) or (mask is not None) or (not self.config.output.include_boxes and not self.config.output.include_masks)
+            if has_label and not is_ignored:
                 annotations.append({
                     'record': pos_record,
                     'box': box,
