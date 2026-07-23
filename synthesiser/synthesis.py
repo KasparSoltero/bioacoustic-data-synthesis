@@ -85,7 +85,7 @@ class SoundscapeSynthesiser:
             neg_wf.sine_fade(sine_fade_samples)
             
             # Fade the negative overlay to avoid harsh cut-ins
-            fade_samples = int(0.01 * self.config.synthesis.sample_rate) # 10ms fade
+            fade_samples = int((self.config.synthesis.edge_fade_ms / 1000.0) * self.config.synthesis.sample_rate)
             neg_wf.fade(fade_samples)
 
             # Apply uniform SNR modification against the 0.0 dBFS background target
@@ -167,13 +167,29 @@ class SoundscapeSynthesiser:
             # If the repetition falls outside the background (or doesn't meet min overlap),
             # abandon the remaining repetitions for this record.
             if start_offset > bg_samples - min_overlap:
-                current_reps_target = current_reps_successful  # Force new record on next iteration
+                current_pos_record = None  # Force new record on next iteration
                 continue
 
             actual_start_sample = pos_wf.trim_to_mix(start_offset, bg_samples)
 
-            # 2. Normalise positive to 0 dBFS to use as a spectral weighting mask
+            # 2. Normalise positive to 0 dBFS to use as a spectral weighting mask. Doing this before BP so to not amplify an empty background region if BP cuts out the vocalisation.
             pos_wf.set_db(0.0)
+
+            # 3. Apply background bandpass to the positive waveform BEFORE scaling.
+            # Field recordings often have massive out-of-band energy (like low wind rumble). 
+            # If not removed here, the later in-band SNR scaling amplifies this invisible rumble.
+            hp_hz = bg_record.highpass_hz if bg_record.highpass_hz > 0 else None
+            lp_hz = bg_record.lowpass_hz or None
+            if hp_hz or lp_hz:
+                pos_wf.bandpass(highpass_hz=hp_hz, lowpass_hz=lp_hz)
+
+                # Check if the bandpass removed almost all energy (i.e. vocalisation was out of band)
+                bp_rms = pos_wf._get_rms()
+                if bp_rms == 0 or 20 * math.log10(bp_rms) < -15.0:
+                    bp_db = 20 * math.log10(bp_rms) if bp_rms > 0 else -float('inf')
+                    print(f"            [Skip] {pos_record.path.name}: energy dropped to {bp_db:.1f}dB after bandpass (out-of-band) (attempt {attempt})")
+                    current_pos_record = None
+                    continue
 
             mix_spec = Spectrogram(
                 wf.tensor, wf.sample_rate,
@@ -221,7 +237,12 @@ class SoundscapeSynthesiser:
             target_pos_db = local_noise_db + (10 * math.log10(snr))
             pos_wf.set_db(target_pos_db)
 
-            # 5. Compute mask and bounding box from the scaled positive spectrogram
+            # Fade clip edges AFTER scaling to ensure any brickwall FFT ringing 
+            # from the earlier bandpass is cleanly tapered to exactly 0.0 at the boundaries.
+            fade_samples = int((self.config.synthesis.edge_fade_ms / 1000.0) * self.config.synthesis.sample_rate)
+            pos_wf.sine_fade(fade_samples)
+
+            # 5. Compute mask and bounding box from the scaled and faded positive spectrogram
             final_pos_spec = Spectrogram(
                 pos_wf.tensor, pos_wf.sample_rate,
                 n_fft=self.config.spectrogram.n_fft,
@@ -268,6 +289,7 @@ class SoundscapeSynthesiser:
                         f"{surviving_px}px < {self.config.synthesis.minimum_mask_area_px}px "
                         f"after bandpass simulation (attempt {attempt})"
                     )
+                    current_pos_record = None
                     continue  # discard — try again
 
                 mask = bp_mask
@@ -275,7 +297,13 @@ class SoundscapeSynthesiser:
             # 7. All checks passed: commit to the mix
             is_ignored = pos_record.label in self.config.output.ignore_classes
             has_label = (box is not None) or (mask is not None) or (not self.config.output.include_boxes and not self.config.output.include_masks)
-            if has_label and not is_ignored:
+            
+            if not has_label and not is_ignored:
+                print(f"            [Skip] {pos_record.path.name}: failed to generate valid label geometry (attempt {attempt})")
+                current_pos_record = None
+                continue
+                
+            if not is_ignored:
                 annotations.append({
                     'record': pos_record,
                     'box': box,

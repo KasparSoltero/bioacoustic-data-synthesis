@@ -25,6 +25,9 @@ class Waveform:
             print('    waveform: converting to mono')
             tensor = tensor.mean(dim=0, keepdim=True)  # Convert to Mono
         
+        # Remove DC offset early to prevent thumps during fading/editing
+        tensor = tensor - tensor.mean(dim=-1, keepdim=True)
+
         original_nyquist = sr // 2
 
         if target_sr and sr != target_sr:

@@ -16,8 +16,9 @@ from synthesiser.synthesis import SoundscapeSynthesiser
 from synthesiser.spectrogram import Spectrogram
 from spectrogram_tools import spec_to_pil, merge_boxes_by_class
 from synthesiser.visualisation import plot_spectrogram
+from synthesiser.interactive import review_sample
 
-def generate_dataset(limit_per_class=None):
+def generate_dataset(limit_per_class=None, interactive=False, sample_seed=None):
     print("=== Soundscape Dataset Generation ===")
     
     # 1. Load Configuration
@@ -33,9 +34,9 @@ def generate_dataset(limit_per_class=None):
 
     for out_dir_name, is_raw in runs:
         print(f"\n=== Starting Run: {out_dir_name} ===")
-        _generate_single_run(config, out_dir_name, is_raw, limit_per_class)
+        _generate_single_run(config, out_dir_name, is_raw, limit_per_class, interactive, sample_seed)
 
-def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
+def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, interactive=False, sample_seed=None):
     config = copy.deepcopy(base_config)
     
     if is_raw:
@@ -45,7 +46,7 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
 
     # 2. Init Catalog
     try:
-        catalog = Catalog(config, limit_per_class=limit_per_class, use_raw_vocalisations=is_raw)
+        catalog = Catalog(config, limit_per_class=limit_per_class, use_raw_vocalisations=is_raw, sample_seed=sample_seed)
     except Exception as e:
         print(f"[Error] Failed to load catalog: {e}")
         return
@@ -65,6 +66,8 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
 
     out_dir.mkdir(parents=True, exist_ok=True)
     example_dir.mkdir(parents=True, exist_ok=True)
+    
+    shutil.copy('config.yaml', out_dir / "generation_config.yaml")
     
     for split in ['train', 'val']:
         if config.output.include_audio:
@@ -118,9 +121,16 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
             spec = Spectrogram(mixed_waveform.tensor, mixed_waveform.sample_rate,
                                n_fft=config.spectrogram.n_fft,
                                hop_length=config.spectrogram.hop_length,
-                               win_length=config.spectrogram.win_length)
+                               win_length=config.spectrogram.win_length,
+                               log_base=config.spectrogram.log_base)
             spec.to_real(power=2.0)
             spec.to_logscale()
+
+            if interactive:
+                action = review_sample(mixed_waveform, spec, annotations, idx, n_soundscapes)
+                if action == 'quit':
+                    print("[Interactive] Quit requested — stopping pipeline.")
+                    break
 
             if idx < 3:
                 # Save example audio
@@ -169,8 +179,9 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
                 boxes = []
                 classes = []
 
-                log_scale = np.logspace(0, 1, num=height, base=10.0) - 1
-                log_scale_indices = np.clip(log_scale * (original_height - 1) / 9.0, 0, original_height - 1).astype(int)
+                log_base = config.spectrogram.log_base
+                log_scale = np.logspace(0, 1, num=height, base=log_base) - 1
+                log_scale_indices = np.clip(log_scale * (original_height - 1) / (log_base - 1), 0, original_height - 1).astype(int)
 
                 instance_id = 1
                 for ann in annotations:
@@ -212,8 +223,8 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class):
                         rel_f_min = f_min_linear / (original_height - 1)
                         rel_f_max = f_max_linear / (original_height - 1)
                         
-                        log_f_min = np.log10(rel_f_min * 9 + 1)
-                        log_f_max = np.log10(rel_f_max * 9 + 1)
+                        log_f_min = np.log(rel_f_min * (log_base - 1) + 1) / np.log(log_base)
+                        log_f_max = np.log(rel_f_max * (log_base - 1) + 1) / np.log(log_base)
                         
                         x_min = np.clip(ann_box[0] / width, 0, 1)
                         x_max = np.clip(ann_box[1] / width, 0, 1)

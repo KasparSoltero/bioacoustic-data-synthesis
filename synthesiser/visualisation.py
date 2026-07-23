@@ -17,11 +17,11 @@ colors_dusk = ["#000000", "#2c1044", "#7b1c58", "#c8314e", "#f06f35", "#f5c353",
 cmap_dusk = LinearSegmentedColormap.from_list("dusk", colors_dusk)
 custom_cmaps = {'dusk': cmap_dusk}
 
-def map_freq_to_log_pixels(image_height, freqs, max_freq):
+def map_freq_to_log_pixels(image_height, freqs, max_freq, log_base=10.0):
     log_indices = []
     for f in freqs:
         relative_pos = f / max_freq
-        log_pos = np.log10(relative_pos * 9 + 1)
+        log_pos = np.log(relative_pos * (log_base - 1) + 1) / np.log(log_base)
         log_indices.append(log_pos * image_height)
     return log_indices
 
@@ -36,6 +36,7 @@ def plot_spectrogram(
     annotations=None,
     bandpass_hz: Optional[Tuple[int, int]] = None,
     title: Optional[str] = None,
+    show_spans: bool = False,
 ):
     """
     Renders a spectrogram object to a matplotlib plot.
@@ -80,7 +81,7 @@ def plot_spectrogram(
     if spec_obj.is_logscale:
         target_freqs = [0, 1000, 2000, 5000, 10000, int(nyquist)]
         target_freqs = [f for f in target_freqs if f <= nyquist]
-        yticks = map_freq_to_log_pixels(height, target_freqs, nyquist)
+        yticks = map_freq_to_log_pixels(height, target_freqs, nyquist, spec_obj.log_base)
         ax.set_yticks(yticks)
         ax.set_yticklabels([str(f//1000) for f in target_freqs])
     else:
@@ -124,12 +125,19 @@ def plot_spectrogram(
             x_max = (t_max / total_frames) * duration
             box_width = x_max - x_min
             
+            # 0. Plot original pasted-clip time span (independent of box/mask threshold)
+            if show_spans:
+                span_t_min = ann.get('start_sample', 0) / spec_obj.sample_rate
+                span_t_max = ann.get('end_sample', ann.get('start_sample', 0)) / spec_obj.sample_rate
+                ax.axvline(span_t_min, color=color, linestyle=':', linewidth=1.0, alpha=0.8, zorder=1)
+                ax.axvline(span_t_max, color=color, linestyle=':', linewidth=1.0, alpha=0.8, zorder=1)
+
             # 1. Plot Mask
             if mask is not None:
                 # If plot is log scaled, we must warp the mask rows to match
                 if spec_obj.is_logscale:
-                    log_scale = np.logspace(0, 1, num=height, base=10.0) - 1
-                    log_scale_indices = np.clip(log_scale * (original_height - 1) / 9.0, 0, original_height - 1).astype(int)
+                    log_scale = np.logspace(0, 1, num=height, base=spec_obj.log_base) - 1
+                    log_scale_indices = np.clip(log_scale * (original_height - 1) / (spec_obj.log_base - 1), 0, original_height - 1).astype(int)
                     mask_to_plot = mask[log_scale_indices, :]
                 else:
                     mask_to_plot = mask
@@ -146,8 +154,8 @@ def plot_spectrogram(
                 
                 # Map STFT frequency bins to Y-axis plot coordinates
                 if spec_obj.is_logscale:
-                    f_min_plot = map_freq_to_log_pixels(height, [f_min * nyquist / (original_height - 1)], nyquist)[0]
-                    f_max_plot = map_freq_to_log_pixels(height, [f_max * nyquist / (original_height - 1)], nyquist)[0]
+                    f_min_plot = map_freq_to_log_pixels(height, [f_min * nyquist / (original_height - 1)], nyquist, spec_obj.log_base)[0]
+                    f_max_plot = map_freq_to_log_pixels(height, [f_max * nyquist / (original_height - 1)], nyquist, spec_obj.log_base)[0]
                 else:
                     f_min_plot = f_min
                     f_max_plot = f_max
@@ -177,7 +185,7 @@ def plot_spectrogram(
                 continue  # skip lines sitting on the boundary — nothing to show
 
             if spec_obj.is_logscale:
-                y = map_freq_to_log_pixels(height, [freq_hz], nyquist)[0]
+                y = map_freq_to_log_pixels(height, [freq_hz], nyquist, spec_obj.log_base)[0]
             else:
                 y = freq_hz / nyquist * height
 

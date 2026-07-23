@@ -31,6 +31,7 @@ class SynthesisConfig:
     snr_range: Tuple[float, float]
     minimum_mask_area_px: int = 50
     mask_threshold_db: float = 5.0
+    edge_fade_ms: int = 20
     synthetic_noise: SyntheticNoiseConfig = field(default_factory=SyntheticNoiseConfig)
 
 @dataclass
@@ -58,6 +59,7 @@ class SpectrogramConfig:
     n_fft: int
     win_length: int
     hop_length: int
+    log_base: float = 10.0
 
 @dataclass
 class Config:

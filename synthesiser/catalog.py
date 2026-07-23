@@ -27,10 +27,11 @@ class Catalog:
     
     ALLOWED_EXTENSIONS: Set[str] = {'.wav', '.mp3', '.flac'}
 
-    def __init__(self, config: Config, limit_per_class: Optional[int] = None, use_raw_vocalisations: bool = False):
+    def __init__(self, config: Config, limit_per_class: Optional[int] = None, use_raw_vocalisations: bool = False, sample_seed: Optional[int] = None):
         self.config = config
         self.limit_per_class = limit_per_class
         self.use_raw_vocalisations = use_raw_vocalisations
+        self.sample_seed = sample_seed
         self.positives: List[AudioRecord] = []
         self.negatives: List[AudioRecord] = []
         self.backgrounds: List[AudioRecord] = []
@@ -115,19 +116,24 @@ class Catalog:
                     class_id_counter += 1
                     
                 class_id = self.species_map[species]
-                added_count = 0
                 if species not in self.class_counts:
                     self.class_counts[species] = 1
 
-                for file_path in subdir.rglob('*'):
-                    if self._is_audio(file_path):
-                        if self.limit_per_class and added_count >= self.limit_per_class:
-                            print(f"Reached limit of {self.limit_per_class} for {species}, skipping remaining.")
-                            break
-                            
-                        file_tags = tags.get(file_path.name, {})
-                        self.positives.append(AudioRecord(path=file_path, label=species, class_id=class_id, tags=file_tags))
-                        added_count += 1
+                # Sort for determinism, then apply a fixed-seed per-species shuffle.
+                # Slicing an increasing limit against the same seed gives nested,
+                # non-repeating growth across sweep steps (2 ⊂ 4 ⊂ 6 ⊂ 8) instead
+                # of always taking the same filesystem-order prefix.
+                files = sorted(f for f in subdir.rglob('*') if self._is_audio(f))
+                if self.sample_seed is not None:
+                    random.Random(self.sample_seed).shuffle(files)
+                if self.limit_per_class:
+                    if len(files) < self.limit_per_class:
+                        print(f"Warning: only {len(files)} files available for {species} (requested limit {self.limit_per_class}).")
+                    files = files[:self.limit_per_class]
+
+                for file_path in files:
+                    file_tags = tags.get(file_path.name, {})
+                    self.positives.append(AudioRecord(path=file_path, label=species, class_id=class_id, tags=file_tags))
 
     def _load_negatives(self):
         for neg_dir_str in self.config.paths.negative:

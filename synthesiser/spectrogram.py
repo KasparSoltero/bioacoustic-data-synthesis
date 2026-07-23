@@ -9,7 +9,7 @@ from torchaudio.functional import spectrogram
 from scipy.ndimage import median_filter
 
 class Spectrogram:
-    def __init__(self, waveform, sample_rate, n_fft=2048, hop_length=None, win_length=None, window=None, power=2.0, normalised=False):
+    def __init__(self, waveform, sample_rate, n_fft=2048, hop_length=None, win_length=None, window=None, power=2.0, normalised=False, log_base=10.0):
         self.waveform = waveform
         self.sample_rate = sample_rate
         self.n_fft = n_fft
@@ -18,6 +18,7 @@ class Spectrogram:
         self.window = window if window is not None else torch.hann_window(self.win_length, device=waveform.device)
         self.power = power
         self.normalised = normalised
+        self.log_base = log_base
         
         self.is_logscale = False
         self._values = None # Lazy evaluation: computed only when requested
@@ -85,8 +86,8 @@ class Spectrogram:
         
     def _apply_logscale(self):
         original_height = self._values.shape[-2]
-        log_scale = torch.logspace(0, 1, steps=original_height, base=10.0, device=self._values.device) - 1
-        log_scale_indices = torch.clamp(log_scale * (original_height - 1) / (10 - 1), 0, original_height - 1).long()
+        log_scale = torch.logspace(0, 1, steps=original_height, base=self.log_base, device=self._values.device) - 1
+        log_scale_indices = torch.clamp(log_scale * (original_height - 1) / (self.log_base - 1), 0, original_height - 1).long()
         self._values = self._values[..., log_scale_indices, :]
 
     def to_linear(self):
