@@ -152,7 +152,7 @@ if __name__ == "__main__":
     random_waveform = torch.randn(1, 48000 * 5)
     sample_rate = 48000
 
-    test_waveform_path = '/Users/kaspar/Downloads/09/20240917_034600_from_20240917_034600.WAV'
+    test_waveform_path = 'PATHNAME'
     test_waveform, sample_rate = torchaudio.load(test_waveform_path)
     
     # Init lazily (no computation done yet)
