@@ -3,12 +3,12 @@ import random
 import torch
 import numpy as np
 from typing import List, Tuple, Dict, Any
-from synthesiser.config import Config
-from synthesiser.catalog import AudioRecord
-from synthesiser.catalog import Catalog
-from synthesiser.waveform import Waveform
-from synthesiser.spectrogram import Spectrogram
-from synthesiser.visualisation import plot_spectrogram
+from bioacoustic_synthesis.config import Config
+from bioacoustic_synthesis.catalog import AudioRecord
+from bioacoustic_synthesis.catalog import Catalog
+from bioacoustic_synthesis.waveform import Waveform
+from bioacoustic_synthesis.spectrogram import Spectrogram
+from bioacoustic_synthesis.visualisation import plot_spectrogram
 from PIL import Image
 
 class SoundscapeSynthesiser:

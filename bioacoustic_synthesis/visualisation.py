@@ -1,4 +1,4 @@
-# synthesiser/visualisation.py
+# bioacoustic_synthesis/visualisation.py
 # plotting spectrograms with matplotlib, including log scaling and custom colormaps. 
 # Also includes an interactive CLI for quick visualization of generated samples.
 import os
@@ -10,7 +10,7 @@ import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap, hsv_to_rgb
 from typing import Optional, Tuple
 
-from synthesiser.spectrogram import Spectrogram
+from bioacoustic_synthesis.spectrogram import Spectrogram
 
 # standard custom colors from previous configuration
 colors_dusk = ["#000000", "#2c1044", "#7b1c58", "#c8314e", "#f06f35", "#f5c353", "#ffffff"]

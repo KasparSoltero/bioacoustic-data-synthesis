@@ -1,2 +1,0 @@
-# generate_yolo_segment_data_from_binary_mask and generate_masks live here
-

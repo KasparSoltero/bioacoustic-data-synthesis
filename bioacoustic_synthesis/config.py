@@ -32,6 +32,8 @@ class SynthesisConfig:
     minimum_mask_area_px: int = 50
     mask_threshold_db: float = 5.0
     edge_fade_ms: int = 20
+    allow_bandpass: bool = True
+    bandpass_tolerance_hz: int = 500
     synthetic_noise: SyntheticNoiseConfig = field(default_factory=SyntheticNoiseConfig)
 
 @dataclass

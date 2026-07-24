@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bioacoustic-synthesis"
+version = "0.1.0"
+description = "Synthesis of richly-labelled bioacoustic soundscape datasets from small source corpora"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Kaspar", email = "kaspar.kimutai@gmail.com" }]
+keywords = ["bioacoustics", "passive acoustic monitoring", "synthetic data", "spectrogram"]
+
+dependencies = [
+    "torch>=2.2",
+    "torchaudio>=2.2",
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "pillow>=10.0",
+    "pyyaml>=6.0",
+    "matplotlib>=3.8",
+    "setuptools<81",
+]
+
+[project.optional-dependencies]
+# Waveform.play() only — not needed for synthesis.
+playback = ["pydub>=0.25"]
+
+# Paper evaluation code (classifiers/). Torch-side, safe alongside the core.
+eval = [
+    "scikit-learn>=1.4",
+    "transformers>=4.53",
+    "albumentations>=2.0",
+    "tqdm>=4.66",
+    "ultralytics>=8.3",
+]
+
+# Perch 2.0 embedding extraction. INSTALL IN A SEPARATE VENV — tensorflow and
+# torch in one environment is a known conflict; embed.py writes a cache that
+# everything else reads.
+perch = ["tensorflow~=2.20", "kagglehub", "soundfile>=0.12", "scipy>=1.11", "numpy>=1.24", "pyyaml>=6.0"]
+
+[project.scripts]
+biosynthesise = "bioacoustic_synthesis.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bioacoustic_synthesis"]

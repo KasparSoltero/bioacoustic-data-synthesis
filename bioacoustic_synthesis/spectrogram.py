@@ -4,7 +4,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchaudio
+from PIL import Image
+from matplotlib.colors import hsv_to_rgb
 from torchaudio.functional import spectrogram
 from scipy.ndimage import median_filter
 
@@ -147,6 +150,59 @@ class Spectrogram:
         lowpass_hz  = int(high_bin * hz_per_bin)
 
         return highpass_hz, lowpass_hz
+
+
+def pcen(spec, s=0.025, alpha=0.01, delta=0.0, r=0.05, eps=1e-6):
+    """
+    Per-Channel Energy Normalisation. Expects (C, F, T) or (B, C, F, T);
+    the moving average runs along T, independently per frequency bin.
+    """
+    if spec.ndim not in (3, 4):
+        raise ValueError(f"pcen expects a 3D or 4D tensor, got {spec.ndim}D.")
+
+    orig_shape = spec.shape
+    if spec.ndim == 4:
+        spec = spec.reshape(-1, orig_shape[-2], orig_shape[-1])
+
+    channels = spec.shape[1]
+    kernel_size = max(1, int(s * spec.shape[2]))
+    weight = spec.new_full((channels, 1, kernel_size), 1.0 / kernel_size)
+
+    M = F.conv1d(spec, weight, padding='same', groups=channels)
+    out = (spec / (M + eps).pow(alpha) + delta).pow(r) - delta ** r
+    return out.reshape(orig_shape)
+
+
+def spec_to_pil(spec, resize=None, iscomplex=False,
+                normalise='power_to_PCEN', color_mode='HSV'):
+    """Converts a spectrogram tensor to a PIL image for model ingestion."""
+    if iscomplex:
+        spec = torch.abs(spec)
+
+    if normalise == 'power_to_dB':
+        spec = 10 * torch.log10(spec + 1e-6)
+    elif normalise == 'dB_to_power':
+        spec = 10 ** (spec / 10)
+    elif normalise == 'power_to_PCEN':
+        spec = pcen(spec)
+    elif normalise == 'complex_to_PCEN':
+        spec = pcen(torch.square(spec))
+
+    arr = np.flipud(np.squeeze(spec.numpy()))
+    arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-12)
+
+    if color_mode == 'HSV':
+        value = arr
+        saturation = 4 * value * (1 - value)
+        hue = np.tile(np.linspace(0, 1, arr.shape[0])[:, np.newaxis], (1, arr.shape[1]))
+        rgb = np.clip(hsv_to_rgb(np.stack([hue, saturation, value], axis=-1)), 0, 1)
+        img = Image.fromarray(np.uint8(rgb * 255), 'RGB')
+    elif color_mode == 'RGB':
+        img = Image.fromarray(np.uint8(np.stack([arr] * 3, axis=-1) * 255), 'RGB')
+    else:
+        img = Image.fromarray(np.uint8(arr * 255), 'L')
+
+    return img.resize(resize, Image.Resampling.LANCZOS) if resize else img
 
 if __name__ == "__main__":
     random_waveform = torch.randn(1, 48000 * 5)

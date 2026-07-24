@@ -1,9 +1,9 @@
-# synthesiser/interactive.py
+# bioacoustic_synthesis/interactive.py
 # Interactive review widget for the synthesis pipeline. Lets you step through
 # generated soundscapes one at a time, toggle box/mask overlays, and play audio.
 
 import matplotlib.pyplot as plt
-from synthesiser.visualisation import plot_spectrogram
+from bioacoustic_synthesis.visualisation import plot_spectrogram
 
 HELP_TEXT = "[n] next  [b] toggle boxes  [m] toggle masks  [o] toggle spans  [space] play audio  [q] quit"
 

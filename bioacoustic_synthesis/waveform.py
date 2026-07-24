@@ -4,8 +4,6 @@ import torch
 import torchaudio
 import random
 import numpy as np
-from pydub import AudioSegment
-from pydub.playback import play as pydub_play
 
 class Waveform:
     """Encapsulates a 1D/2D PyTorch tensor representing audio, providing core synthesis transformations."""
@@ -235,6 +233,9 @@ class Waveform:
         Plays the audio directly using pydub. 
         Useful for quick debugging without saving files.
         """
+        from pydub import AudioSegment
+        from pydub.playback import play as pydub_play
+
         arr = self.tensor.detach().cpu().numpy()
         
         # pydub expects interleaved data (samples, channels)

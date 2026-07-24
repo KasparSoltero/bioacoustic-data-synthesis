@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Set, Tuple
 
 import torch
 import torchaudio
-from synthesiser.config import Config
+from bioacoustic_synthesis.config import Config
 
 @dataclass
 class AudioRecord:
@@ -37,6 +37,7 @@ class Catalog:
         self.backgrounds: List[AudioRecord] = []
         self.species_map: Dict[str, int] = {}
         self.class_counts: Dict[str, int] = {}
+        self.excluded_backgrounds: int = 0
         self._build_catalog()
         self._print_summary()
 
@@ -57,6 +58,9 @@ class Catalog:
         # Backgrounds (noise)
         bg_samples = len(self.backgrounds)
         print(f"noise: {bg_samples} samples")
+        if self.excluded_backgrounds:
+            print(f"noise: {self.excluded_backgrounds} excluded as band-limited "
+                  f"(allow_bandpass=false)")
         
         # Proportions
         if pos_samples > 0:
@@ -174,6 +178,15 @@ class Catalog:
                     )
                     print(f"   [Catalog] {file_path.name}: detected bandpass HP={hp_hz}Hz LP={lp_hz}Hz")
 
+                    if not self.config.synthesis.allow_bandpass:
+                        tol = self.config.synthesis.bandpass_tolerance_hz
+                        target_nyquist = sample_rate // 2
+                        if lp_hz < target_nyquist - tol or hp_hz > tol:
+                            print(f"   [Catalog] Excluded {file_path.name}: band-limited to "
+                                  f"{hp_hz}-{lp_hz}Hz, require 0-{target_nyquist}Hz (+/-{tol}Hz)")
+                            self.excluded_backgrounds += 1
+                            continue
+
                     record = AudioRecord(
                         path=file_path, label='background',
                         highpass_hz=hp_hz, lowpass_hz=lp_hz,
@@ -194,7 +207,7 @@ class Catalog:
         original nyquist, so it reflects the true hardware ceiling even after
         the waveform is later resampled for synthesis.
         """
-        from synthesiser.spectrogram import Spectrogram
+        from bioacoustic_synthesis.spectrogram import Spectrogram
         tensor, sr = torchaudio.load(str(file_path))
         if tensor.shape[0] > 1:
             tensor = tensor.mean(dim=0, keepdim=True)

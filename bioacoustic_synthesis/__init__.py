@@ -1,4 +1,4 @@
-# __init__.py for synthesiser package
+# __init__.py for bioacoustic_synthesis package
 from .config import *
 from .catalog import *
 from .synthesis import *

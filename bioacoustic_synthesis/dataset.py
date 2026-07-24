@@ -10,20 +10,22 @@ from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
 
-from synthesiser.config import load_config
-from synthesiser.catalog import Catalog
-from synthesiser.synthesis import SoundscapeSynthesiser
-from synthesiser.spectrogram import Spectrogram
-from spectrogram_tools import spec_to_pil, merge_boxes_by_class
-from synthesiser.visualisation import plot_spectrogram
-from synthesiser.interactive import review_sample
+from bioacoustic_synthesis.config import load_config
+from bioacoustic_synthesis.catalog import Catalog
+from bioacoustic_synthesis.synthesis import SoundscapeSynthesiser
+from bioacoustic_synthesis.spectrogram import Spectrogram
+from bioacoustic_synthesis.spectrogram import spec_to_pil
+from bioacoustic_synthesis.annotations import merge_boxes_by_class
+from bioacoustic_synthesis.visualisation import plot_spectrogram
+from bioacoustic_synthesis.interactive import review_sample
 
-def generate_dataset(limit_per_class=None, interactive=False, sample_seed=None):
+def generate_dataset(config_path='config.yaml', limit_per_class=None,
+                     interactive=False, sample_seed=None, seed=None):
     print("=== Soundscape Dataset Generation ===")
     
     # 1. Load Configuration
     try:
-        config = load_config('config.yaml')
+        config = load_config(config_path)
     except Exception as e:
         print(f"[Error] Failed to load config: {e}")
         sys.exit(1)
@@ -34,9 +36,11 @@ def generate_dataset(limit_per_class=None, interactive=False, sample_seed=None):
 
     for out_dir_name, is_raw in runs:
         print(f"\n=== Starting Run: {out_dir_name} ===")
-        _generate_single_run(config, out_dir_name, is_raw, limit_per_class, interactive, sample_seed)
+        _generate_single_run(config, config_path, out_dir_name, is_raw,
+                             limit_per_class, interactive, sample_seed, seed)
 
-def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, interactive=False, sample_seed=None):
+def _generate_single_run(base_config, config_path, out_dir_name, is_raw,
+                         limit_per_class, interactive=False, sample_seed=None, seed=None):
     config = copy.deepcopy(base_config)
     
     if is_raw:
@@ -56,7 +60,7 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, int
         return
 
     # 3. Init Synthesiser
-    synthesiser = SoundscapeSynthesiser(config)
+    bioacoustic_synthesis = SoundscapeSynthesiser(config)
 
     # 4. Prepare Directories
     out_dir = Path(config.paths.output) / out_dir_name
@@ -67,7 +71,14 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, int
     out_dir.mkdir(parents=True, exist_ok=True)
     example_dir.mkdir(parents=True, exist_ok=True)
     
-    shutil.copy('config.yaml', out_dir / "generation_config.yaml")
+    shutil.copy(config_path, out_dir / "generation_config.yaml")
+    # Provenance for the run, appended rather than merged so the copied config
+    # stays byte-identical to the one that was passed in.
+    with open(out_dir / "generation_config.yaml", 'a') as f:
+        f.write(f"\n# --- run provenance (appended by dataset.py) ---\n")
+        f.write(f"seed: {seed}\n")
+        f.write(f"sample_seed: {sample_seed}\n")
+        f.write(f"limit_per_class: {limit_per_class}\n")
     
     for split in ['train', 'val']:
         if config.output.include_audio:
@@ -104,7 +115,7 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, int
             positives = catalog.positives
             
             # Generate the mix
-            mixed_waveform, annotations = synthesiser.generate(bg_record, negatives, positives, catalog)
+            mixed_waveform, annotations = bioacoustic_synthesis.generate(bg_record, negatives, positives, catalog)
             print(f"[{idx+1}/{n_soundscapes}] Mix complete for {bg_record.path.name} with {len(negatives)} negatives and {len(annotations)} positive annotations.")
 
             # Determine split
@@ -284,7 +295,7 @@ def _generate_single_run(base_config, out_dir_name, is_raw, limit_per_class, int
                     
                     unet_root = out_dir / "unetplusplus_masks"
                     if not (unet_root / "generation_params.yaml").exists():
-                        shutil.copy('config.yaml', unet_root / "generation_params.yaml")
+                        shutil.copy(config_path, unet_root / "generation_params.yaml")
 
         except Exception as e:
             print(f"[Error] Synthesis failed on iteration {idx}: {e}")
